@@ -12,7 +12,7 @@ if (! function_exists('getModelForGuard')) {
                     return;
                 }
 
-                return config("auth.providers.{$guard['provider']}.model");
+                return config("auth.providers.{$guard['provider']}.database.model");
             })->get($guard);
     }
 }
