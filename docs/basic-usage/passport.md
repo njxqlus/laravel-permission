@@ -38,8 +38,13 @@ You need to extend the Client model to make it possible to add the required trai
 The extended Client should either provide a `$guard_name` property or a `guardName()` method.
 They should return a string that matches the [configured](https://laravel.com/docs/master/passport#installation) guard name for the passport driver.
 
+To tell Passport to use this extended Client, add the rule below to the `boot` method of your `App\Providers\AuthServiceProvider` class.
+```php
+Passport::useClientModel(\App\Models\Client::class); // Use the namespace of your extended Client.
+```
+
 ## Middleware
-All middlewares provided by this package work with the Client.
+All middleware provided by this package work with the Client.
 
 Do make sure that you only wrap your routes in the [`client`](https://laravel.com/docs/master/passport#via-middleware) middleware and not the `auth:api` middleware as well.
 Wrapping routes in the `auth:api` middleware currently does not work for the Client Credentials Grant.

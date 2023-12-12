@@ -70,8 +70,9 @@ trait HasRoles
      *
      * @param  string|int|array|Role|Collection|\BackedEnum  $roles
      * @param  string  $guard
+     * @param  bool  $without
      */
-    public function scopeRole(Builder $query, $roles, $guard = null): Builder
+    public function scopeRole(Builder $query, $roles, $guard = null, $without = false): Builder
     {
         if ($roles instanceof Collection) {
             $roles = $roles->all();
@@ -91,10 +92,9 @@ trait HasRoles
             return $this->getRoleClass()::{$method}($role, $guard ?: $this->getDefaultGuardName());
         }, Arr::wrap($roles));
 
-        $roleClass = $this->getRoleClass();
-        $key = (new $roleClass())->getKeyName();
+        $key = (new ($this->getRoleClass())())->getKeyName();
 
-        return $query->whereHas('roles', fn (Builder $subQuery) => $subQuery
+        return $query->{! $without ? 'whereHas' : 'whereDoesntHave'}('roles', fn (Builder $subQuery) => $subQuery
             ->whereIn(config('permission.table_names.roles').".$key", \array_column($roles, $key))
         );
     }
@@ -107,36 +107,13 @@ trait HasRoles
      */
     public function scopeWithoutRole(Builder $query, $roles, $guard = null): Builder
     {
-        if ($roles instanceof Collection) {
-            $roles = $roles->all();
-        }
-
-        $roles = array_map(function ($role) use ($guard) {
-            if ($role instanceof Role) {
-                return $role;
-            }
-
-            if ($role instanceof \BackedEnum) {
-                $role = $role->value;
-            }
-
-            $method = is_int($role) || PermissionRegistrar::isUid($role) ? 'findById' : 'findByName';
-
-            return $this->getRoleClass()::{$method}($role, $guard ?: $this->getDefaultGuardName());
-        }, Arr::wrap($roles));
-
-        $roleClass = $this->getRoleClass();
-        $key = (new $roleClass())->getKeyName();
-
-        return $query->whereDoesntHave('roles', fn (Builder $subQuery) => $subQuery
-            ->whereIn(config('permission.table_names.roles').".$key", \array_column($roles, $key))
-        );
+        return $this->scopeRole($query, $roles, $guard, true);
     }
 
     /**
      * Returns roles ids as array keys
      *
-     * @param  array|string|int|Role|Collection|\BackedEnum  $roles
+     * @param  string|int|array|Role|Collection|\BackedEnum  $roles
      */
     private function collectRoles(...$roles): array
     {
@@ -152,9 +129,10 @@ trait HasRoles
                     return $array;
                 }
 
-                $this->ensureModelSharesGuard($role);
-
-                $array[] = $role->getKey();
+                if (! in_array($role->getKey(), $array)) {
+                    $this->ensureModelSharesGuard($role);
+                    $array[] = $role->getKey();
+                }
 
                 return $array;
             }, []);
@@ -163,7 +141,7 @@ trait HasRoles
     /**
      * Assign the given role to the model.
      *
-     * @param  array|string|int|Role|Collection  ...$roles
+     * @param  string|int|array|Role|Collection|\BackedEnum  ...$roles
      * @return $this
      */
     public function assignRole(...$roles)
@@ -203,7 +181,7 @@ trait HasRoles
     /**
      * Revoke the given role from the model.
      *
-     * @param  string|int|Role  $role
+     * @param  string|int|Role|\BackedEnum  $role
      */
     public function removeRole($role)
     {
@@ -221,7 +199,7 @@ trait HasRoles
     /**
      * Remove all current roles and set the given ones.
      *
-     * @param  array|Role|Collection|string|int  ...$roles
+     * @param  string|int|array|Role|Collection|\BackedEnum  ...$roles
      * @return $this
      */
     public function syncRoles(...$roles)
@@ -240,11 +218,11 @@ trait HasRoles
      *
      * @param  string|int|array|Role|Collection|\BackedEnum  $roles
      */
-    public function hasRole($roles, string $guard = null): bool
+    public function hasRole($roles, ?string $guard = null): bool
     {
         $this->loadMissing('roles');
 
-        if (is_string($roles) && false !== strpos($roles, '|')) {
+        if (is_string($roles) && strpos($roles, '|') !== false) {
             $roles = $this->convertPipeToArray($roles);
         }
 
@@ -253,8 +231,7 @@ trait HasRoles
         }
 
         if (is_int($roles) || PermissionRegistrar::isUid($roles)) {
-            $roleClass = $this->getRoleClass();
-            $key = (new $roleClass())->getKeyName();
+            $key = (new ($this->getRoleClass())())->getKeyName();
 
             return $guard
                 ? $this->roles->where('guard_name', $guard)->contains($key, $roles)
@@ -293,7 +270,7 @@ trait HasRoles
      *
      * Alias to hasRole() but without Guard controls
      *
-     * @param  string|int|array|Role|Collection  $roles
+     * @param  string|int|array|Role|Collection|\BackedEnum  $roles
      */
     public function hasAnyRole(...$roles): bool
     {
@@ -305,7 +282,7 @@ trait HasRoles
      *
      * @param  string|array|Role|Collection|\BackedEnum  $roles
      */
-    public function hasAllRoles($roles, string $guard = null): bool
+    public function hasAllRoles($roles, ?string $guard = null): bool
     {
         $this->loadMissing('roles');
 
@@ -313,7 +290,7 @@ trait HasRoles
             $roles = $roles->value;
         }
 
-        if (is_string($roles) && false !== strpos($roles, '|')) {
+        if (is_string($roles) && strpos($roles, '|') !== false) {
             $roles = $this->convertPipeToArray($roles);
         }
 
@@ -347,11 +324,11 @@ trait HasRoles
      *
      * @param  string|array|Role|Collection  $roles
      */
-    public function hasExactRoles($roles, string $guard = null): bool
+    public function hasExactRoles($roles, ?string $guard = null): bool
     {
         $this->loadMissing('roles');
 
-        if (is_string($roles) && false !== strpos($roles, '|')) {
+        if (is_string($roles) && strpos($roles, '|') !== false) {
             $roles = $this->convertPipeToArray($roles);
         }
 
